@@ -31,9 +31,8 @@ This codebase builds on [stable-worldmodel](https://github.com/galilai-group/sta
 
 **Installation:**
 ```bash
-uv venv --python=3.10
-source .venv/bin/activate
-uv pip install stable-worldmodel[train,env]
+conda activate jepa
+pip install -e .
 ```
 
 ## Data
@@ -49,13 +48,13 @@ Place the extracted `.h5` files under `$STABLEWM_HOME` (defaults to `~/.stable-w
 export STABLEWM_HOME=/path/to/your/storage
 ```
 
-Dataset names are specified without the `.h5` extension. For example, `config/train/data/pusht.yaml` references `pusht_expert_train`, which resolves to `$STABLEWM_HOME/pusht_expert_train.h5`.
+Dataset names are specified without the `.h5` extension. For example, `src/lewm/config/train/data/pusht.yaml` references `pusht_expert_train`, which resolves to `$STABLEWM_HOME/pusht_expert_train.h5`.
 
 ## Training
 
-`jepa.py` contains the PyTorch implementation of LeWM. Training is configured via [Hydra](https://hydra.cc/) config files under `config/train/`.
+`src/lewm/models/jepa.py` contains the PyTorch implementation of LeWM. Training is configured via [Hydra](https://hydra.cc/) config files packaged under `src/lewm/config/train/`.
 
-Before training, set your WandB `entity` and `project` in `config/train/lewm.yaml`:
+Before training, set your WandB `entity` and `project` in `src/lewm/config/train/lewm.yaml`:
 ```yaml
 wandb:
   config:
@@ -65,7 +64,7 @@ wandb:
 
 To launch training:
 ```bash
-python train.py data=pusht
+lewm-train data=pusht
 ```
 
 Checkpoints are saved to `$STABLEWM_HOME` upon completion.
@@ -74,14 +73,14 @@ For baseline scripts, see the stable-worldmodel [scripts](https://github.com/gal
 
 ## Planning
 
-Evaluation configs live under `config/eval/`. Set the `policy` field to the checkpoint path **relative to `$STABLEWM_HOME`**, without the `_object.ckpt` suffix:
+Evaluation configs live under `src/lewm/config/eval/`. Set the `policy` field to the checkpoint path **relative to `$STABLEWM_HOME`**, without the `_object.ckpt` suffix:
 
 ```bash
 # ✓ correct
-python eval.py --config-name=pusht.yaml policy=pusht/lewm
+lewm-eval --config-name=pusht policy=pusht/lewm
 
 # ✗ incorrect
-python eval.py --config-name=pusht.yaml policy=pusht/lewm_object.ckpt
+lewm-eval --config-name=pusht policy=pusht/lewm_object.ckpt
 ```
 
 ## Pretrained Checkpoints
@@ -105,8 +104,10 @@ Pre-trained checkpoints are available on [Google Drive](https://drive.google.com
 ## Loading a checkpoint
 
 Each tar archive contains two files per checkpoint:
-- `<name>_object.ckpt` — a serialized Python object for convenient loading; this is what `eval.py` and the `stable_worldmodel` API use
+- `<name>_object.ckpt` — a serialized Python object for convenient loading; this is what the packaged evaluation entrypoint and the `stable_worldmodel` API use
 - `<name>_weight.ckpt` — a weights-only checkpoint (`state_dict`) for cases where you want to load weights into your own model instance
+
+Because object checkpoints are serialized with Python module paths, checkpoints created before the `src/lewm` package migration may not deserialize under the new package layout. Re-export them from the new package layout if you need guaranteed compatibility.
 
 To load the object checkpoint via the `stable_worldmodel` API:
 

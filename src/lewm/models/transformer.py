@@ -1,40 +1,14 @@
 import torch
-from torch import nn
 import torch.nn.functional as F
 from einops import rearrange
+from torch import nn
+
 
 def modulate(x, shift, scale):
     """AdaLN-zero modulation"""
     return x * (1 + scale) + shift
 
-class SIGReg(torch.nn.Module):
-    """Sketch Isotropic Gaussian Regularizer (single-GPU!)"""
 
-    def __init__(self, knots=17, num_proj=1024):
-        super().__init__()
-        self.num_proj = num_proj
-        t = torch.linspace(0, 3, knots, dtype=torch.float32)
-        dt = 3 / (knots - 1)
-        weights = torch.full((knots,), 2 * dt, dtype=torch.float32)
-        weights[[0, -1]] = dt
-        window = torch.exp(-t.square() / 2.0)
-        self.register_buffer("t", t)
-        self.register_buffer("phi", window)
-        self.register_buffer("weights", weights * window)
-
-    def forward(self, proj):
-        """
-        proj: (T, B, D)
-        """
-        # sample random projections
-        A = torch.randn(proj.size(-1), self.num_proj, device=proj.device)
-        A = A.div_(A.norm(p=2, dim=0))
-        # compute the epps-pulley statistic
-        x_t = (proj @ A).unsqueeze(-1) * self.t
-        err = (x_t.cos().mean(-3) - self.phi).square() + x_t.sin().mean(-3).square()
-        statistic = (err @ self.weights) * proj.size(-2)
-        return statistic.mean() # average over projections and time
-    
 class FeedForward(nn.Module):
     """FeedForward network used in Transformers"""
 
@@ -78,7 +52,7 @@ class Attention(nn.Module):
         """
         x = self.norm(x)
         drop = self.dropout if self.training else 0.0
-        qkv = self.to_qkv(x).chunk(3, dim=-1)  # q, k, v: (B, heads, T, dim_head)
+        qkv = self.to_qkv(x).chunk(3, dim=-1)
         q, k, v = (rearrange(t, "b t (h d) -> b h t d", h=self.heads) for t in qkv)
         out = F.scaled_dot_product_attention(q, k, v, dropout_p=drop, is_causal=causal)
         out = rearrange(out, "b h t d -> b t (h d)")
@@ -171,7 +145,6 @@ class Transformer(nn.Module):
             )
 
     def forward(self, x, c=None):
-
         if hasattr(self, "input_proj"):
             x = self.input_proj(x)
 
@@ -185,60 +158,6 @@ class Transformer(nn.Module):
         if hasattr(self, "output_proj"):
             x = self.output_proj(x)
         return x
-
-class Embedder(nn.Module):
-    def __init__(
-        self,
-        input_dim=10,
-        smoothed_dim=10,
-        emb_dim=10,
-        mlp_scale=4,
-    ):
-        super().__init__()
-        self.patch_embed = nn.Conv1d(input_dim, smoothed_dim, kernel_size=1, stride=1)
-        self.embed = nn.Sequential(
-            nn.Linear(smoothed_dim, mlp_scale * emb_dim),
-            nn.SiLU(),
-            nn.Linear(mlp_scale * emb_dim, emb_dim),
-        )
-
-    def forward(self, x):
-        """
-        x: (B, T, D)
-        """
-        x = x.float()
-        x = x.permute(0, 2, 1)
-        x = self.patch_embed(x)
-        x = x.permute(0, 2, 1)
-        x = self.embed(x)
-        return x
-
-
-class MLP(nn.Module):
-    """Simple MLP with optional normalization and activation"""
-
-    def __init__(
-        self,
-        input_dim,
-        hidden_dim,
-        output_dim=None,
-        norm_fn=nn.LayerNorm,
-        act_fn=nn.GELU,
-    ):
-        super().__init__()
-        norm_fn = norm_fn(hidden_dim) if norm_fn is not None else nn.Identity()
-        self.net = nn.Sequential(
-            nn.Linear(input_dim, hidden_dim),
-            norm_fn,
-            act_fn(),
-            nn.Linear(hidden_dim, output_dim or input_dim),
-        )
-
-    def forward(self, x):
-        """
-        x: (B*T, D)
-        """
-        return self.net(x)
 
 
 class ARPredictor(nn.Module):
