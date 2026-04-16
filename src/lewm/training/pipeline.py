@@ -5,6 +5,7 @@ import lightning as pl
 import stable_pretraining as spt
 import stable_worldmodel as swm
 import torch
+from hydra.utils import instantiate
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf, open_dict
 
@@ -12,7 +13,6 @@ from lewm.models.components import Embedder, MLP
 from lewm.models.jepa import JEPA
 from lewm.models.regularizers import SIGReg
 from lewm.models.transformer import ARPredictor
-from lewm.training.callbacks import ModelObjectCallBack
 from lewm.training.forward import lejepa_forward
 from lewm.training.transforms import get_column_normalizer, get_img_preprocessor
 
@@ -125,15 +125,19 @@ def build_training_manager(cfg):
     with open(run_dir / "config.yaml", "w") as file_obj:
         OmegaConf.save(cfg, file_obj)
 
-    object_dump_callback = ModelObjectCallBack(
-        dirpath=run_dir,
-        filename=cfg.output_model_name,
-        epoch_interval=1,
-    )
+    # Instantiate callbacks from Hydra config (control inversion)
+    callbacks_dict = instantiate(cfg.callbacks, _convert_="partial")
+
+    # Special handling: inject correct run_dir for model checkpoint
+    if "model_checkpoint" in callbacks_dict:
+        callbacks_dict["model_checkpoint"].dirpath = run_dir
+
+    # Convert to list for Lightning Trainer
+    callbacks_list = list(callbacks_dict.values())
 
     trainer = pl.Trainer(
         **cfg.trainer,
-        callbacks=[object_dump_callback],
+        callbacks=callbacks_list,
         num_sanity_val_steps=1,
         logger=logger,
         enable_checkpointing=True,

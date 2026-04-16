@@ -71,6 +71,84 @@ Checkpoints are saved to `$STABLEWM_HOME` upon completion.
 
 For baseline scripts, see the stable-worldmodel [scripts](https://github.com/galilai-group/stable-worldmodel/tree/main/scripts/train) folder.
 
+## Training Monitoring
+
+LeWM now includes a comprehensive training monitoring system that automatically logs key metrics to WandB. The system tracks:
+
+**Row 1: Training Health**
+- `train/pred_loss` (log scale) — prediction loss trend
+- `train/sigreg_loss` — SIGReg regularization loss
+- `val/pred_loss` — validation loss (if enabled)
+
+**Row 2: Representation Quality (Research Core)**
+- `representation/rankme_per_dim` — effective rank / embedding dimension (0-1 scale, avoid collapse)
+- `representation/embedding_dim` — current embedding dimension (from config)
+- `representation/embedding_norm_std` — embedding L2 norm standard deviation
+
+**Row 3: System State**
+- `system/grad_norm` — global gradient norm (detect explosion/vanishing)
+- `system/learning_rate` — learning rate schedule (cosine annealing)
+
+**Row 4: Embedding Statistics (Optional)**
+- `embedding/mean`, `embedding/std`, `embedding/max`, `embedding/min`
+- `embedding/temporal_cosine_sim_mean` — temporal embedding similarity
+
+The monitoring system is automatically enabled when you run `lewm-train`. All metrics are logged via Lightning callbacks without polluting the main training path.
+
+**Key Monitoring Guidelines:**
+- **RankMe**: Keep `rankme_per_dim` in [0.5, 1.0] to avoid representation collapse
+- **Gradient Norm**: Monitor for explosion (> 1000) or vanishing (< 1e-6)
+- **Loss Balance**: Adjust `loss.sigreg.weight` based on pred_loss vs sigreg_loss trade-off
+
+**Customize Monitoring Frequency:**
+```bash
+lewm-train monitoring.representation_interval=50 monitoring.system_interval=25
+```
+
+See [docs/wandb_dashboard_guide.md](docs/wandb_dashboard_guide.md) for detailed WandB dashboard configuration and metric interpretation guidelines.
+
+### Monitoring System Robustness
+
+The monitoring system implements defensive programming to ensure training safety:
+
+- **Graceful Error Handling**: Missing metrics → warnings, not crashes
+- **Dependency Validation**: All callbacks verify required data before computing
+- **Exception Safety**: Computational errors caught and reported, training continues
+- **Shape Validation**: Invalid tensor shapes rejected with clear warnings
+
+Example warning output:
+```
+RuntimeWarning: [RepresentationQualityCallback] 'emb' not found in outputs at batch 42.
+Skipping representation quality monitoring for this batch.
+```
+
+This ensures monitoring failures never interrupt training.
+
+### Automatic Training Visualization
+
+After training completes, `TrainingMetricsPlotCallback` automatically generates metric evolution plots:
+
+- **4-row plot layout**: Matches WandB dashboard structure
+- **Output location**: Saved to `run_dir/plots/` (PNG by default)
+- **Format options**: PNG, PDF, SVG (configurable via `callbacks.training_metrics_plot.plot_format`)
+- **DPI control**: Default 300, customizable
+
+Generated plots:
+```
+run_dir/plots/
+├── Row1_TrainingHealth.png         (pred_loss, sigreg_loss curves)
+├── Row2_RepresentationQuality.png  (rankme_per_dim, embedding norms)
+├── Row3_SystemState.png            (grad_norm, learning_rate)
+└── Row4_EmbeddingStatistics.png    (embedding statistics)
+```
+
+Customize plot settings:
+```bash
+lewm-train callbacks.training_metrics_plot.plot_format=pdf callbacks.training_metrics_plot.dpi=600
+```
+
+Plots are generated automatically at training end—no manual intervention required.
+
 ## Planning
 
 Evaluation configs live under `src/lewm/config/eval/`. Set the `policy` field to the checkpoint path **relative to `$STABLEWM_HOME`**, without the `_object.ckpt` suffix:

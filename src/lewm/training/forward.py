@@ -24,6 +24,12 @@ def lejepa_forward(self, batch, stage, cfg):
     output["sigreg_loss"] = self.sigreg(emb.transpose(0, 1))
     output["loss"] = output["pred_loss"] + lambd * output["sigreg_loss"]
 
+    # Only expose detached key variables for monitoring callbacks
+    # All derived statistics should be computed in callbacks, not here
+    output["emb"] = emb.detach()
+    output["tgt_emb"] = tgt_emb.detach()
+    output["pred_emb"] = pred_emb.detach()
+
     losses_dict = {f"{stage}/{k}": v.detach() for k, v in output.items() if "loss" in k}
     self.log_dict(losses_dict, on_step=True, sync_dist=True)
     return output

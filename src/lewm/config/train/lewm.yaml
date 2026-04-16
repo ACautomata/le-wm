@@ -62,3 +62,35 @@ loss:
     kwargs:
       knots: 17
       num_proj: 1024
+
+# Callbacks 配置（Hydra instantiate）
+callbacks:
+  model_checkpoint:
+    _target_: lewm.training.callbacks.ModelObjectCallBack
+    dirpath: ${hydra:runtime.cwd}/${subdir}
+    filename: ${output_model_name}
+    epoch_interval: 1
+
+  representation_quality:
+    _target_: lewm.training.callbacks.RepresentationQualityCallback
+    log_interval: 100
+
+  system_monitoring:
+    _target_: lewm.training.callbacks.SystemMonitoringCallback
+    log_interval: 50
+
+  embedding_statistics:
+    _target_: lewm.training.callbacks.EmbeddingStatisticsCallback
+    log_interval: 200
+
+  prediction_quality:
+    _target_: lewm.training.callbacks.PredictionQualityCallback
+    log_interval: 100
+
+  wandb_summary:
+    _target_: lewm.training.callbacks.WandBSummaryCallback
+
+  training_metrics_plot:
+    _target_: lewm.training.callbacks.TrainingMetricsPlotCallback
+    plot_format: png
+    dpi: 300
