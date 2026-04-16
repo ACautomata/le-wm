@@ -101,8 +101,11 @@ class RepresentationQualityCallback(Callback):
         """
         # 计算 embedding matrix 的奇异值
         with torch.no_grad():
+            # SVD 不支持 BFloat16，转换为 float32
+            embeddings_float32 = embeddings.float()
+
             # SVD decomposition
-            U, S, V = torch.linalg.svd(embeddings, full_matrices=False)
+            U, S, V = torch.linalg.svd(embeddings_float32, full_matrices=False)
 
             # 归一化奇异值
             S_normalized = S / S.sum()
