@@ -135,7 +135,7 @@ class SystemMonitoringCallback(Callback):
         try:
             # 计算梯度范数
             total_norm = 0.0
-            for p in pl_module.parameters():
+            for p in pl_module.parameters(with_callbacks=False):
                 if p.grad is not None:
                     param_norm = p.grad.data.norm(2)
                     total_norm += param_norm.item() ** 2

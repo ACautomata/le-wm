@@ -105,7 +105,7 @@ class JEPA(nn.Module):
         """Compute action candidate costs from initial and goal observations."""
         assert "goal" in info_dict, "goal not in info_dict"
 
-        device = next(self.parameters()).device
+        device = next(self.parameters(with_callbacks=False)).device
         for key in list(info_dict.keys()):
             if torch.is_tensor(info_dict[key]):
                 info_dict[key] = info_dict[key].to(device)
