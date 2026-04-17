@@ -11,3 +11,6 @@ dataset:
     - action
     - proprio
     - state
+
+wm:
+  action_dim: 2
