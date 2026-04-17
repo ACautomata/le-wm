@@ -65,7 +65,7 @@ Most repository-specific logic now lives under `src/lewm/`:
 - `src/lewm/training/transforms.py`: preprocessing helpers used during training
 - `src/lewm/training/callbacks.py`: object checkpoint export callback
 - `src/lewm/training/forward.py`: `lejepa_forward()` loss computation
-- `src/lewm/training/pipeline.py`: training orchestration and model assembly
+- `src/lewm/training/pipeline.py`: training orchestration — all model modules instantiated from Hydra config via `_target_` entries, enabling full architecture swaps via CLI overrides
 - `src/lewm/evaluation/pipeline.py`: evaluation orchestration and results-path handling
 
 ## Training flow
@@ -75,11 +75,10 @@ Start from `src/lewm/train_app.py` or `src/lewm/training/pipeline.py` when chang
 1. Hydra loads `src/lewm/config/train/lewm.yaml` and a dataset config from `src/lewm/config/train/data/*.yaml`.
 2. `swm.data.HDF5Dataset` loads trajectories from `$STABLEWM_HOME`.
 3. Image preprocessing and non-image column normalization are assembled in `src/lewm/training/transforms.py` and attached as dataset transforms.
-4. The model is built from:
-   - a ViT encoder from `stable_pretraining`
-   - `Embedder` for actions
-   - `ARPredictor` for autoregressive next-embedding prediction
-   - MLP projectors around encoder and predictor outputs
+4. The model is built entirely from Hydra config (`wm.encoder`, `wm.predictor`, etc.).
+   Each module specifies `_target_` in config, instantiated via `hydra.utils.instantiate`.
+   The pipeline infers `hidden_dim` from the encoder and injects it into dependent modules.
+   Users can swap any module architecture via CLI: `lewm-train wm.encoder._target_=my.Encoder`
 5. `src/lewm/training/forward.py` defines `lejepa_forward()`, which computes the two-term LeWM objective:
    - prediction loss between predicted and target embeddings
    - `SIGReg` regularization over embeddings
@@ -106,7 +105,7 @@ If you are changing planning behavior, inspect both `src/lewm/evaluation/pipelin
 
 ## Configuration layout
 
-- `src/lewm/config/train/lewm.yaml`: main training defaults for optimizer, trainer, model dimensions, WandB, and loss weight
+- `src/lewm/config/train/lewm.yaml`: main training defaults — all model modules under `wm.*` use `_target_` for Hydra instantiate, `optimizers` is a structured dict, `loss.sigreg` uses `_target_`, dynamic parameters (`hidden_dim`, `input_dim`, `num_patches`) injected at runtime
 - `src/lewm/config/train/data/*.yaml`: per-dataset settings such as dataset name, frameskip, loaded columns, and cached columns
 - `src/lewm/config/train/launcher/local.yaml`: optional local training launcher override
 - `src/lewm/config/eval/*.yaml`: per-environment evaluation settings, dataset-backed initialization, and output filenames
