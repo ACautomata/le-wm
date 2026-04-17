@@ -46,5 +46,76 @@ class TestMLPStringNormFn(unittest.TestCase):
         self.assertEqual(out.shape, (4, 5))
 
 
+from omegaconf import OmegaConf, open_dict
+
+
+class TestDataConfigActionDim(unittest.TestCase):
+    def _load_config(self, data_name):
+        base = OmegaConf.load(Path(SRC) / "lewm/config/train/lewm.yaml")
+        data = OmegaConf.load(Path(SRC) / f"lewm/config/train/data/{data_name}.yaml")
+        return OmegaConf.merge(base, data)
+
+    def test_pusht_has_action_dim(self):
+        cfg = self._load_config("pusht")
+        self.assertIn("action_dim", OmegaConf.to_container(cfg.wm, resolve=False))
+
+    def test_tworoom_has_action_dim(self):
+        cfg = self._load_config("tworoom")
+        self.assertIn("action_dim", OmegaConf.to_container(cfg.wm, resolve=False))
+
+    def test_dmc_has_action_dim(self):
+        cfg = self._load_config("dmc")
+        self.assertIn("action_dim", OmegaConf.to_container(cfg.wm, resolve=False))
+
+    def test_ogb_has_action_dim(self):
+        cfg = self._load_config("ogb")
+        self.assertIn("action_dim", OmegaConf.to_container(cfg.wm, resolve=False))
+
+
+class TestPipelineConfigStructure(unittest.TestCase):
+    """Test that pipeline config has all required _target_ entries."""
+
+    def _load_merged_config(self, data_name="pusht"):
+        base = OmegaConf.load(Path(SRC) / "lewm/config/train/lewm.yaml")
+        data = OmegaConf.load(Path(SRC) / f"lewm/config/train/data/{data_name}.yaml")
+        return OmegaConf.merge(base, data)
+
+    def test_encoder_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.encoder)
+
+    def test_predictor_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.predictor)
+
+    def test_action_encoder_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.action_encoder)
+
+    def test_projector_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.projector)
+
+    def test_pred_proj_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.pred_proj)
+
+    def test_world_model_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.world_model)
+
+    def test_decoder_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.wm.decoder)
+
+    def test_sigreg_has_target(self):
+        cfg = self._load_merged_config()
+        self.assertIn("_target_", cfg.loss.sigreg)
+
+    def test_optimizers_has_model_opt(self):
+        cfg = self._load_merged_config()
+        self.assertIn("model_opt", cfg.optimizers)
+
+
 if __name__ == "__main__":
     unittest.main()

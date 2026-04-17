@@ -9,15 +9,12 @@ from hydra.utils import instantiate
 from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf, open_dict
 
-from lewm.models.components import Embedder, MLP
-from lewm.models.jepa import JEPA
-from lewm.models.regularizers import SIGReg
-from lewm.models.transformer import ARPredictor
 from lewm.training.forward import lejepa_forward
 from lewm.training.transforms import get_column_normalizer, get_img_preprocessor
 
 
 def build_training_manager(cfg):
+    # Phase 1: Dataset + transforms
     dataset = swm.data.HDF5Dataset(**cfg.data.dataset, transform=None)
     transforms = [
         get_img_preprocessor(source="pixels", target="pixels", img_size=cfg.img_size)
@@ -27,7 +24,6 @@ def build_training_manager(cfg):
         for col in cfg.data.dataset.keys_to_load:
             if col.startswith("pixels"):
                 continue
-
             normalizer = get_column_normalizer(dataset, col, col)
             transforms.append(normalizer)
             setattr(cfg.wm, f"{col}_dim", dataset.get_dim(col))
@@ -54,61 +50,49 @@ def build_training_manager(cfg):
         drop_last=False,
     )
 
-    encoder = spt.backbone.utils.vit_hf(
-        cfg.encoder_scale,
-        patch_size=cfg.patch_size,
-        image_size=cfg.img_size,
-        pretrained=False,
-        use_mask_token=False,
-    )
-
+    # Phase 2: Parameter inference + injection
+    encoder = instantiate(cfg.wm.encoder)
     hidden_dim = encoder.config.hidden_size
-    embed_dim = cfg.wm.get("embed_dim", hidden_dim)
     effective_act_dim = cfg.data.dataset.frameskip * cfg.wm.action_dim
 
-    predictor = ARPredictor(
-        num_frames=cfg.wm.history_size,
-        input_dim=embed_dim,
-        hidden_dim=hidden_dim,
-        output_dim=hidden_dim,
-        **cfg.predictor,
-    )
+    with open_dict(cfg):
+        cfg.wm.predictor.hidden_dim = hidden_dim
+        cfg.wm.predictor.output_dim = hidden_dim
+        cfg.wm.projector.input_dim = hidden_dim
+        cfg.wm.pred_proj.input_dim = hidden_dim
+        cfg.wm.action_encoder.input_dim = effective_act_dim
+        if cfg.wm.decoder.get("enabled", False):
+            cfg.wm.decoder.num_patches = (cfg.img_size // cfg.patch_size) ** 2
+            cfg.wm.decoder.patch_size = cfg.patch_size
 
-    action_encoder = Embedder(input_dim=effective_act_dim, emb_dim=embed_dim)
-    projector = MLP(
-        input_dim=hidden_dim,
-        output_dim=embed_dim,
-        hidden_dim=2048,
-        norm_fn=torch.nn.BatchNorm1d,
-    )
-    predictor_proj = MLP(
-        input_dim=hidden_dim,
-        output_dim=embed_dim,
-        hidden_dim=2048,
-        norm_fn=torch.nn.BatchNorm1d,
-    )
+    # Phase 3: Module instantiation
+    predictor = instantiate(cfg.wm.predictor)
+    action_encoder = instantiate(cfg.wm.action_encoder)
+    projector = instantiate(cfg.wm.projector)
+    pred_proj = instantiate(cfg.wm.pred_proj)
 
-    world_model = JEPA(
+    decoder = None
+    if cfg.wm.decoder.get("enabled", False):
+        decoder = instantiate(cfg.wm.decoder)
+
+    world_model = instantiate(
+        cfg.wm.world_model,
         encoder=encoder,
         predictor=predictor,
         action_encoder=action_encoder,
         projector=projector,
-        pred_proj=predictor_proj,
+        pred_proj=pred_proj,
+        decoder=decoder,
     )
 
-    optimizers = {
-        "model_opt": {
-            "modules": "model",
-            "optimizer": dict(cfg.optimizer),
-            "scheduler": {"type": "LinearWarmupCosineAnnealingLR"},
-            "interval": "epoch",
-        },
-    }
+    sigreg = instantiate(cfg.loss.sigreg)
+    optimizers = OmegaConf.to_container(cfg.optimizers, resolve=True)
 
+    # Phase 4: Training assembly
     data_module = spt.data.DataModule(train=train, val=val)
     lightning_module = spt.Module(
         model=world_model,
-        sigreg=SIGReg(**cfg.loss.sigreg.kwargs),
+        sigreg=sigreg,
         forward=partial(lejepa_forward, cfg=cfg),
         optim=optimizers,
     )
@@ -125,14 +109,11 @@ def build_training_manager(cfg):
     with open(run_dir / "config.yaml", "w") as file_obj:
         OmegaConf.save(cfg, file_obj)
 
-    # Instantiate callbacks from Hydra config (control inversion)
     callbacks_dict = instantiate(cfg.callbacks, _convert_="partial")
 
-    # Special handling: inject correct run_dir for model checkpoint
     if "model_checkpoint" in callbacks_dict:
         callbacks_dict["model_checkpoint"].dirpath = run_dir
 
-    # Convert to list for Lightning Trainer
     callbacks_list = list(callbacks_dict.values())
 
     trainer = pl.Trainer(
