@@ -117,5 +117,49 @@ class TestPipelineConfigStructure(unittest.TestCase):
         self.assertIn("model_opt", cfg.optimizers)
 
 
+class TestPipelineIoCIntegration(unittest.TestCase):
+    """Smoke test: verify pipeline config structure is valid for instantiate."""
+
+    def test_module_configs_are_instantiable(self):
+        """Each module config with _target_ should have required params."""
+        cfg = OmegaConf.load(Path(SRC) / "lewm/config/train/lewm.yaml")
+        data = OmegaConf.load(Path(SRC) / "lewm/config/train/data/pusht.yaml")
+        cfg = OmegaConf.merge(cfg, data)
+
+        enc_cfg = OmegaConf.to_container(cfg.wm.encoder, resolve=True)
+        self.assertEqual(enc_cfg["size"], "tiny")
+        self.assertEqual(enc_cfg["patch_size"], 14)
+        self.assertEqual(enc_cfg["image_size"], 224)
+
+    def test_predictor_has_all_params(self):
+        """Predictor config has all required constructor args except injected ones."""
+        cfg = OmegaConf.load(Path(SRC) / "lewm/config/train/lewm.yaml")
+        data = OmegaConf.load(Path(SRC) / "lewm/config/train/data/pusht.yaml")
+        cfg = OmegaConf.merge(cfg, data)
+
+        pred_cfg = OmegaConf.to_container(cfg.wm.predictor, resolve=False)
+        required = {"_target_", "num_frames", "input_dim", "depth", "heads",
+                     "mlp_dim", "dim_head", "dropout", "emb_dropout"}
+        self.assertTrue(required.issubset(set(pred_cfg.keys())))
+
+    def test_optimizers_structure(self):
+        """Optimizers config matches spt.Module expected structure."""
+        cfg = OmegaConf.load(Path(SRC) / "lewm/config/train/lewm.yaml")
+        data = OmegaConf.load(Path(SRC) / "lewm/config/train/data/pusht.yaml")
+        cfg = OmegaConf.merge(cfg, data)
+
+        opt = OmegaConf.to_container(cfg.optimizers, resolve=True)
+        self.assertIn("model_opt", opt)
+        self.assertEqual(opt["model_opt"]["modules"], "model")
+        self.assertEqual(opt["model_opt"]["optimizer"]["type"], "AdamW")
+
+    def test_decoder_disabled_by_default(self):
+        """Decoder is disabled in default config."""
+        cfg = OmegaConf.load(Path(SRC) / "lewm/config/train/lewm.yaml")
+        data = OmegaConf.load(Path(SRC) / "lewm/config/train/data/pusht.yaml")
+        cfg = OmegaConf.merge(cfg, data)
+        self.assertFalse(cfg.wm.decoder.enabled)
+
+
 if __name__ == "__main__":
     unittest.main()
