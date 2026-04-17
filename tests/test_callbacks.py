@@ -39,7 +39,7 @@ class MockLightningModule(pl.LightningModule):
         for k, v in dict.items():
             self.log(k, v)
 
-    def parameters(self):
+    def parameters(self, with_callbacks=False):
         """Return mock parameters with gradients."""
         param = torch.nn.Parameter(torch.randn(10, 10))
         param.grad = torch.randn(10, 10) * 0.1  # Mock gradient

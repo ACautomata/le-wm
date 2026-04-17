@@ -58,6 +58,22 @@ class JEPAShapeTests(unittest.TestCase):
         self.assertEqual(encoded["act_emb"].shape, (2, 3, 7))
         self.assertEqual(predicted.shape, (2, 3, 7))
 
+    def test_decode_raises_error_without_decoder(self):
+        """Test that decode() raises error when decoder is None."""
+        from lewm.models.jepa import JEPA
+
+        model = JEPA(
+            encoder=DummyEncoder(hidden_size=7),
+            predictor=DummyPredictor(),
+            action_encoder=DummyActionEncoder(),
+            decoder=None,
+        )
+
+        emb = torch.randn(2, 3, 7)
+
+        with self.assertRaises(RuntimeError):
+            model.decode(emb)
+
 
 if __name__ == "__main__":
     unittest.main()

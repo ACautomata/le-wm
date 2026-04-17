@@ -10,6 +10,7 @@ from lightning.pytorch.loggers import WandbLogger
 from omegaconf import OmegaConf, open_dict
 
 from lewm.models.components import Embedder, MLP
+from lewm.models.decoder import Decoder
 from lewm.models.jepa import JEPA
 from lewm.models.regularizers import SIGReg
 from lewm.models.transformer import ARPredictor
@@ -88,12 +89,29 @@ def build_training_manager(cfg):
         norm_fn=torch.nn.BatchNorm1d,
     )
 
+    # Optional decoder for visualization
+    decoder = None
+    if cfg.decoder.get("enabled", False):
+        num_patches = (cfg.img_size // cfg.patch_size) ** 2
+        decoder = Decoder(
+            cls_dim=embed_dim,
+            num_patches=num_patches,
+            patch_size=cfg.patch_size,
+            hidden_dim=cfg.decoder.hidden_dim,
+            depth=cfg.decoder.depth,
+            heads=cfg.decoder.heads,
+            dim_head=cfg.decoder.dim_head,
+            mlp_dim=cfg.decoder.mlp_dim,
+            dropout=cfg.decoder.dropout,
+        )
+
     world_model = JEPA(
         encoder=encoder,
         predictor=predictor,
         action_encoder=action_encoder,
         projector=projector,
         pred_proj=predictor_proj,
+        decoder=decoder,
     )
 
     optimizers = {

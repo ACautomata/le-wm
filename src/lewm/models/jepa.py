@@ -18,6 +18,7 @@ class JEPA(nn.Module):
         action_encoder,
         projector=None,
         pred_proj=None,
+        decoder=None,
     ):
         super().__init__()
 
@@ -26,6 +27,7 @@ class JEPA(nn.Module):
         self.action_encoder = action_encoder
         self.projector = projector or nn.Identity()
         self.pred_proj = pred_proj or nn.Identity()
+        self.decoder = decoder
 
     def encode(self, info):
         """Encode observations and actions into embeddings."""
@@ -41,6 +43,17 @@ class JEPA(nn.Module):
             info["act_emb"] = self.action_encoder(info["action"])
 
         return info
+
+    def decode(self, emb):
+        """Decode embeddings into images (visualization only)."""
+        if self.decoder is None:
+            raise RuntimeError("Decoder not initialized. Set decoder_cfg to enable visualization.")
+
+        batch_size, time_size = emb.size(0), emb.size(1)
+        emb = rearrange(emb, "b t d -> (b t) d")
+        images = self.decoder(emb)
+        images = rearrange(images, "(b t) c h w -> b t c h w", b=batch_size, t=time_size)
+        return images
 
     def predict(self, emb, act_emb):
         """Predict next state embeddings."""
