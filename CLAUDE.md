@@ -72,6 +72,7 @@ Most repository-specific logic now lives under `src/lewm/`:
 - `src/lewm/models/jepa.py`: the world model itself — observation encoding, autoregressive rollout, goal encoding, and planning cost computation
 - `src/lewm/models/components.py`: project-specific components such as `Embedder` and `MLP`
 - `src/lewm/models/transformer.py`: transformer building blocks and `ARPredictor`
+- `src/lewm/models/decoder.py`: `[CLS]` embedding visualization decoder (disabled by default)
 - `src/lewm/models/regularizers.py`: `SIGReg`
 - `src/lewm/training/transforms.py`: preprocessing helpers used during training
 - `src/lewm/training/callbacks.py`: object checkpoint export callback. Also contains monitoring callbacks: `RepresentationQualityCallback`, `SystemMonitoringCallback`, `EmbeddingStatisticsCallback`, `PredictionQualityCallback`, `WandBSummaryCallback`, `TrainingMetricsPlotCallback`.
@@ -135,5 +136,6 @@ This repository relies heavily on Hydra config composition, so behavior changes 
 - `SIGReg` in `src/lewm/models/regularizers.py` is documented as single-GPU oriented; be careful when changing training parallelism assumptions.
 - `src/lewm/eval_app.py` forces `MUJOCO_GL=egl` at import time, so evaluation assumes headless GPU rendering.
 - Solver device defaults in `src/lewm/config/eval/solver/*.yaml` are hardcoded to `cuda`; if evaluation must be device-agnostic, start there as well as the model-loading path in `src/lewm/evaluation/pipeline.py`.
-- The decoder module (`wm.decoder`) is referenced in `lewm.yaml` but disabled by default (`enabled: false`). The `lewm.models.decoder` package does not exist yet — enable only after implementation.
+- The decoder (`wm.decoder` in `lewm.yaml`, `_target_: lewm.models.decoder.Decoder`) is disabled by default (`enabled: false`). It is a lightweight transformer decoder for diagnostic visualization of `[CLS]` token embeddings — not used during training or planning.
 - W&B logging is enabled by default (`wandb.enabled: True` in `lewm.yaml`). Set `wandb.enabled=false` via CLI to disable.
+- `lewm.yaml` contains two decoder config blocks: `wm.decoder` (IoC, has `_target_`, used by pipeline) and a top-level `decoder` (leftover from merge, unused). The pipeline only reads `wm.decoder`.
