@@ -9,3 +9,6 @@ dataset:
   keys_to_cache:
     - action
     - proprio
+
+wm:
+  action_dim: 5

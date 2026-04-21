@@ -9,3 +9,6 @@ dataset:
   keys_to_cache:
     - action
     - observation
+
+wm:
+  action_dim: 2

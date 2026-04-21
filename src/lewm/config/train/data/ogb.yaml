@@ -11,3 +11,6 @@ dataset:
     - observation
   keys_to_merge:
     proprio: proprio
+
+wm:
+  action_dim: 4

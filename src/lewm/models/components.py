@@ -41,10 +41,14 @@ class MLP(nn.Module):
         act_fn=nn.GELU,
     ):
         super().__init__()
-        norm_fn = norm_fn(hidden_dim) if norm_fn is not None else nn.Identity()
+        if isinstance(norm_fn, str):
+            norm_fn = getattr(nn, norm_fn)
+        if isinstance(act_fn, str):
+            act_fn = getattr(nn, act_fn)
+        norm_layer = norm_fn(hidden_dim) if norm_fn is not None else nn.Identity()
         self.net = nn.Sequential(
             nn.Linear(input_dim, hidden_dim),
-            norm_fn,
+            norm_layer,
             act_fn(),
             nn.Linear(hidden_dim, output_dim or input_dim),
         )

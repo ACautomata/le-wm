@@ -3,7 +3,7 @@ defaults:
   - data: pusht
 
 output_model_name: lewm
-subdir: ${hydra:job.id}
+subdir: ${git_tag:}/${hydra:job.id}
 
 num_workers: 6
 train_split: 0.9
@@ -11,6 +11,7 @@ seed: 3072
 img_size: 224
 patch_size: 14
 encoder_scale: tiny
+embed_dim: 192
 dump_object: True
 
 trainer:
@@ -27,11 +28,6 @@ loader:
   prefetch_factor: 3
   pin_memory: True
 
-optimizer:
-  type: AdamW
-  lr: 5e-5
-  weight_decay: 1e-3
-
 wandb:
   enabled: True
   config:
@@ -43,27 +39,77 @@ wandb:
     log_model: False
 
 wm:
-  type: lewm
   history_size: 3
   num_preds: 1
-  embed_dim: 192
+  action_dim: 2
 
-predictor:
-  depth: 6
-  heads: 16
-  mlp_dim: 2048
-  dim_head: 64
-  dropout: 0.1
-  emb_dropout: 0.0
+  encoder:
+    _target_: spt.backbone.utils.vit_hf
+    size: ${encoder_scale}
+    patch_size: ${patch_size}
+    image_size: ${img_size}
+    pretrained: false
+    use_mask_token: false
+
+  predictor:
+    _target_: lewm.models.transformer.ARPredictor
+    num_frames: ${wm.history_size}
+    input_dim: ${embed_dim}
+    depth: 6
+    heads: 16
+    mlp_dim: 2048
+    dim_head: 64
+    dropout: 0.1
+    emb_dropout: 0.0
+
+  action_encoder:
+    _target_: lewm.models.components.Embedder
+    emb_dim: ${embed_dim}
+
+  projector:
+    _target_: lewm.models.components.MLP
+    output_dim: ${embed_dim}
+    hidden_dim: 2048
+    norm_fn: BatchNorm1d
+
+  pred_proj:
+    _target_: lewm.models.components.MLP
+    output_dim: ${embed_dim}
+    hidden_dim: 2048
+    norm_fn: BatchNorm1d
+
+  decoder:
+    enabled: false
+    _target_: lewm.models.decoder.Decoder
+    cls_dim: ${embed_dim}
+    hidden_dim: 256
+    depth: 4
+    heads: 8
+    dim_head: 32
+    mlp_dim: 512
+    dropout: 0.0
+
+  world_model:
+    _target_: lewm.models.jepa.JEPA
 
 loss:
   sigreg:
     weight: 0.09
-    kwargs:
-      knots: 17
-      num_proj: 1024
+    _target_: lewm.models.regularizers.SIGReg
+    knots: 17
+    num_proj: 1024
 
-# Callbacks 配置（Hydra instantiate）
+optimizers:
+  model_opt:
+    modules: model
+    optimizer:
+      type: AdamW
+      lr: 5e-5
+      weight_decay: 1e-3
+    scheduler:
+      type: LinearWarmupCosineAnnealingLR
+    interval: epoch
+
 callbacks:
   model_checkpoint:
     _target_: lewm.training.callbacks.ModelObjectCallBack
