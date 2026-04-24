@@ -26,8 +26,19 @@ If you find this code useful, please reference it in your paper:
 }
 ```
 
+## What this fork adds
+
+This repository keeps the original LeWorldModel research code centered on the JEPA world model, but adds a more packaged and experiment-friendly layer around the upstream stack. Compared with the upstream codebase, the main changes are:
+
+- **Packaged training and evaluation entrypoints:** `lewm-train` and `lewm-eval` wrap the Hydra applications under `src/lewm/`, so experiments can be launched without relying on ad hoc scripts.
+- **Hydra-first model assembly:** model components, losses, optimizers, callbacks, datasets, and planner settings are expressed through packaged config files, making architecture and experiment changes possible through CLI overrides.
+- **Clearer repository boundaries:** project-specific model, training, evaluation, transform, callback, and config code has been organized under `src/lewm/`, while environment management, planning, dataset access, and training infrastructure continue to come from `stable-worldmodel` and `stable-pretraining`.
+- **Training observability:** the fork adds Lightning/W&B monitoring callbacks for prediction loss, SIGReg loss, representation quality, gradient norms, learning rate, embedding statistics, and post-training metric plots.
+- **Diagnostic visualization:** an optional decoder path reconstructs visual diagnostics from `[CLS]` embeddings, disabled by default so it does not affect normal training or planning.
+- **Checkpoint and package-layout fixes:** object-checkpoint export, packaged config discovery, and package-layout assumptions are documented and covered by tests for the current `src/lewm` layout.
+
 ## Using the code
-This codebase builds on [stable-worldmodel](https://github.com/galilai-group/stable-worldmodel) for environment management, planning, and evaluation, and [stable-pretraining](https://github.com/galilai-group/stable-pretraining) for training. Together they reduce this repository to its core contribution: the model architecture and training objective.
+This codebase builds on [stable-worldmodel](https://github.com/galilai-group/stable-worldmodel) for environment management, planning, and evaluation, and [stable-pretraining](https://github.com/galilai-group/stable-pretraining) for training. Together they let this repository focus on LeWM-specific model, training, evaluation, monitoring, and diagnostic code.
 
 **Installation:**
 ```bash
