@@ -165,6 +165,8 @@ class SystemMonitoringCallback(Callback):
 
     def on_train_epoch_start(self, trainer, pl_module):
         """Epoch开始时也记录学习率"""
+        if not trainer.is_global_zero:
+            return
         try:
             optimizers = trainer.optimizers
             if optimizers:
