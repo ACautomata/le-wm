@@ -92,15 +92,6 @@ wm:
   world_model:
     _target_: lewm.models.jepa.JEPA
 
-decoder:
-  enabled: False  # Set to True for visualization
-  hidden_dim: 256
-  depth: 4
-  heads: 8
-  dim_head: 32
-  mlp_dim: 512
-  dropout: 0.0
-
 loss:
   sigreg:
     weight: 0.09

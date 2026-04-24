@@ -148,6 +148,10 @@ class Decoder(nn.Module):
 
         # Rearrange to image
         num_patches_side = int(patches.size(1) ** 0.5)
+        assert patches.size(1) == num_patches_side**2, (
+            f"num_patches ({patches.size(1)}) must be a perfect square, "
+            f"got sqrt={num_patches_side}"
+        )
         image = rearrange(
             patches,
             "b (h w) (p1 p2 c) -> b c (h p1) (w p2)",
