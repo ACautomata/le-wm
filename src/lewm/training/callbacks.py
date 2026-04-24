@@ -47,6 +47,8 @@ class RepresentationQualityCallback(Callback):
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         """在每个训练batch结束后计算表征质量指标"""
+        if not trainer.is_global_zero:
+            return
         if batch_idx % self.log_interval != 0:
             return
 
@@ -76,12 +78,12 @@ class RepresentationQualityCallback(Callback):
 
             # 计算 rankme_per_dim
             rankme = self._compute_rankme(emb_flat)
-            pl_module.log("representation/rankme_per_dim", rankme, on_step=True, sync_dist=True)
+            pl_module.log("representation/rankme_per_dim", rankme, on_step=True)
 
             # 计算 embedding L2 norm std
             norms = emb_flat.norm(dim=-1)  # [batch*time]
             norm_std = norms.std()
-            pl_module.log("representation/embedding_norm_std", norm_std, on_step=True, sync_dist=True)
+            pl_module.log("representation/embedding_norm_std", norm_std, on_step=True)
 
             # 记录 embedding_dim (from config)
             embed_dim = emb.size(-1)
@@ -132,6 +134,8 @@ class SystemMonitoringCallback(Callback):
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         """监控梯度和学习率"""
+        if not trainer.is_global_zero:
+            return
         if batch_idx % self.log_interval != 0:
             return
 
@@ -144,7 +148,7 @@ class SystemMonitoringCallback(Callback):
                     total_norm += param_norm.item() ** 2
             total_norm = total_norm ** 0.5
 
-            pl_module.log("system/grad_norm", total_norm, on_step=True, sync_dist=True)
+            pl_module.log("system/grad_norm", total_norm, on_step=True)
 
             # 记录当前学习率
             optimizers = trainer.optimizers
@@ -161,6 +165,8 @@ class SystemMonitoringCallback(Callback):
 
     def on_train_epoch_start(self, trainer, pl_module):
         """Epoch开始时也记录学习率"""
+        if not trainer.is_global_zero:
+            return
         try:
             optimizers = trainer.optimizers
             if optimizers:
@@ -182,6 +188,8 @@ class EmbeddingStatisticsCallback(Callback):
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         """详细的embedding统计信息"""
+        if not trainer.is_global_zero:
+            return
         if batch_idx % self.log_interval != 0:
             return
 
@@ -240,6 +248,8 @@ class PredictionQualityCallback(Callback):
 
     def on_train_batch_end(self, trainer, pl_module, outputs, batch, batch_idx):
         """预测质量监控"""
+        if not trainer.is_global_zero:
+            return
         if batch_idx % self.log_interval != 0:
             return
 

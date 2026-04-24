@@ -21,6 +21,8 @@ class VisualizationCallback(Callback):
         batch,
         batch_idx: int,
     ):
+        if not trainer.is_global_zero:
+            return
         if batch_idx % self.log_interval != 0:
             return
 
